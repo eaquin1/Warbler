@@ -49,6 +49,7 @@ class Likes(db.Model):
     )
 
 
+
 class User(db.Model):
     """User in the system."""
 
@@ -129,6 +130,11 @@ class User(db.Model):
 
         found_user_list = [user for user in self.following if user == other_user]
         return len(found_user_list) == 1
+
+    def likes_message(self, msg):
+        """Does this user like this post?"""
+        is_post_liked = [post for post in self.likes if post.id == msg.id]
+        return len(is_post_liked) == 1
 
     @classmethod
     def signup(cls, username, email, password, image_url):

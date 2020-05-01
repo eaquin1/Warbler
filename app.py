@@ -4,8 +4,8 @@ from flask import Flask, render_template, request, flash, redirect, session, g
 from flask_debugtoolbar import DebugToolbarExtension
 from sqlalchemy.exc import IntegrityError
 
-from forms import UserAddForm, LoginForm, MessageForm
-from models import db, connect_db, User, Message
+from forms import UserAddForm, LoginForm, MessageForm, UserEditForm
+from models import db, connect_db, User, Message, Likes
 
 CURR_USER_KEY = "curr_user"
 
@@ -210,16 +210,32 @@ def stop_following(follow_id):
     return redirect(f"/users/{g.user.id}/following")
 
 
-@app.route('/users/profile', methods=["GET", "POST"])
+@app.route('/users/profile/', methods=["GET", "POST"])
 def profile():
     """Update profile for current user."""
 
     if not g.user:
         flash("Access unauthorized.", "danger")
         return redirect("/")
-    
-    
 
+    user = g.user
+    form = UserEditForm(obj=user)
+
+    if form.validate_on_submit():
+        if User.authenticate(user.username, form.password.data):  
+            user.username = form.username.data
+            user.email = form.email.data
+            user.image_url = form.image_url.data or "/static/images/default-pic.png"
+            user.header_image_url = form.header_image_url.data or "/static/images/warbler-hero.jpg"
+            user.bio = form.bio.data
+
+            db.session.commit()
+            return redirect(f"/users/{user.id}")
+
+        flash("Please enter the correct password", "danger")
+    
+    return render_template("users/edit.html", form=form, user_id=user.id)
+    
 
 @app.route('/users/delete', methods=["POST"])
 def delete_user():
@@ -299,14 +315,33 @@ def homepage():
     """
 
     if g.user:
+        following_ids = [f.id for f in g.user.following] + [g.user.id]
         messages = (Message
                     .query
+                    .filter(Message.user_id.in_(following_ids))
                     .order_by(Message.timestamp.desc())
                     .limit(100)
                     .all())
 
         return render_template('home.html', messages=messages)
 
+    else:
+        return render_template('home-anon.html')
+
+@app.route('/users/add_like/<int:msg_id>', methods=["POST"])
+def handle_like(msg_id):
+    """Add or remove likes for messages"""
+
+    if g.user:
+        user_id = g.user.id
+        msg = Message.query.get(msg_id)
+        if user_id != msg.user_id:
+            like = Likes(user_id=user_id, message_id=msg_id)
+            db.session.add(like)
+            db.session.commit()
+        else:
+            flash('No liking your own posts', "danger")
+        return redirect('/')
     else:
         return render_template('home-anon.html')
 
