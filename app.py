@@ -1,6 +1,6 @@
 import os
 
-from flask import Flask, render_template, request, flash, redirect, session, g
+from flask import Flask, render_template, request, flash, redirect, session, g, abort
 from flask_debugtoolbar import DebugToolbarExtension
 from sqlalchemy.exc import IntegrityError
 
@@ -338,27 +338,37 @@ def homepage():
     else:
         return render_template('home-anon.html')
 
-@app.route('/users/add_like/<int:msg_id>', methods=["POST", "DELETE"])
-def handle_like(msg_id):
-    """Add or remove likes for messages"""
+@app.route('/messages/<int:msg_id>/add_like', methods=["POST"])
+def add_like(msg_id):
+    """Add likes for messages"""
 
-    if g.user:
-        user = g.user
-        msg = Message.query.get(msg_id)
-        if user.id != msg.user_id:
-            if g.user.likes_message(msg):
-                like = Likes.query.filter_by(message_id=msg.id).first()
-                db.session.delete(like)
-                db.session.commit()
-            else:
-                like = Likes(user_id=user.id, message_id=msg_id)
-                db.session.add(like)
-                db.session.commit()
-        else:
-            flash('No liking your own posts', "danger")
-        return redirect('/')
-    else:
-        return render_template('home-anon.html')
+    if not g.user:
+        flash("Access unauthorized.", "danger")
+        return redirect("/")
+
+    msg = Message.query.get_or_404(msg_id)
+    if msg.user_id == g.user.id:
+        return abort(403)
+    
+    g.user.likes.append(msg)
+    db.session.commit()
+    return redirect('/')
+    
+@app.route('/messages/<int:msg_id>/remove_like', methods=["POST"])
+def remove_like(msg_id):
+    """Add likes for messages"""
+
+    if not g.user:
+        flash("Access unauthorized.", "danger")
+        return redirect("/")
+
+    msg = Message.query.get_or_404(msg_id)
+    if msg.user_id == g.user.id:
+        return abort(403)
+    
+    g.user.likes.remove(msg)
+    db.session.commit()
+    return redirect('/')
 
 
 ##############################################################################

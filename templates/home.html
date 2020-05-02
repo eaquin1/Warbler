@@ -51,13 +51,15 @@
               <span class="text-muted">{{ msg.timestamp.strftime('%d %B %Y') }}</span>
               <p>{{ msg.text }}</p>
             </div>
-            <form method="POST" action="/users/add_like/{{ msg.id }}" id="messages-form">
+           
               {% if g.user.likes_message(msg) %}
+              <form method="POST" action="/messages/{{msg.id}}/remove_like" id="messages-form">
               <button class="
                 btn 
                 btn-sm 
                 btn-primary"
               > {% elif not g.user.likes_message(msg) %}
+              <form method="POST" action="/messages/{{msg.id}}/add_like" id="messages-form">
               <button class="
                 btn 
                 btn-sm 
