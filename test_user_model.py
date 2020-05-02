@@ -7,6 +7,7 @@
 
 import os
 from unittest import TestCase
+from sqlalchemy import exc
 
 from models import db, User, Message, Follows
 
@@ -94,14 +95,89 @@ class UserModelTestCase(TestCase):
     #
     #####
 
-    def test_user_follows(self):
+    def test_user_following(self):
         """Is User 1 following User 2 detected?"""
         u1 = self.u1
         u2 = self.u2
 
-        u1_following = Follows(user_being_followed_id = u2.id, user_following_id=u1.id)
-        db.session.add(u1_following)
+        u1.following.append(u2)
         db.session.commit()
 
         self.assertTrue(u1.is_following(u2))
+        self.assertFalse(u2.is_following(u1))
+    
+    def test_user_is_followed_by(self):
+        """Is User 1 followed by User 2?"""
+
+        u1 = self.u1
+        u2 = self.u2
+
+        u1.followers.append(u2)
+        db.session.commit()
+
+        self.assertTrue(u1.is_followed_by(u2))
+    
+    def test_user_follows(self):
+        self.u1.following.append(self.u2)
+        db.session.commit()
+
+        self.assertEqual(len(self.u2.following), 0)
+        self.assertEqual(len(self.u1.following), 1)
+        self.assertEqual(len(self.u2.followers), 1)
+        self.assertEqual(len(self.u1.followers), 0)
+
+        self.assertEqual(self.u2.followers[0].id, self.u1.id)
+        self.assertEqual(self.u1.following[0].id, self.u2.id)
+    
+    #####
+    #
+    # Signup Tests
+    #
+    #####
+
+    def test_signup(self):
+        """Test creating a new user"""
+
+        new_user = User.signup("tester", "tester@gmail.com", "pass123", None)
+        new_user.id = 8080
+        db.session.commit()
+        user_instance = User.query.get(8080)
         
+        self.assertIsInstance(new_user, User)
+        self.assertEqual(user_instance.username, "tester")
+        self.assertEqual(user_instance.email, "tester@gmail.com")
+        self.assertNotEqual(user_instance.password, "pass123")
+        # Bcrypt strings should start with $2b$
+        self.assertTrue(user_instance.password.startswith("$2b$"))
+    
+    def test_invalid_username_signup(self):
+        """Test if invalid signup is handled"""
+        invalid = User.signup(None, "test@test.com", "pass", None)
+        invalid.id = 1234
+
+        with self.assertRaises(exc.IntegrityError):
+            db.session.commit()
+    
+    def test_invalid_password_signup(self):
+        with self.assertRaises(ValueError):
+            User.signup("testtesttest", "email@gmail.com", "", None)
+        
+        with self.assertRaises(ValueError):
+            User.signup("test0", "e34@gmail.com", None, None)
+    
+    #####
+    #
+    # Authentication Tests
+    #
+    #####
+
+    def test_valid_authenication(self):
+        user = User.authenticate(self.u1.username, "password")
+        self.assertIsNotNone(user)
+        self.assertEqual(user.id, self.uid1)
+    
+    def test_invalid_password_authentication(self):
+        self.assertFalse(User.authenticate(self.u1.username, "Not_the_password"))
+
+    def test_invalid_username_authentication(self):
+        self.assertFalse(User.authenticate("somebodyelse", "password"))
