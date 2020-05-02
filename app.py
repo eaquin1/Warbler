@@ -252,6 +252,16 @@ def delete_user():
 
     return redirect("/signup")
 
+@app.route('/users/<int:user_id>/likes')
+def show_likes(user_id):
+    """Show list of posts this user likes"""
+
+    if not g.user:
+        flash("Access unauthorized.", "danger")
+        return redirect("/")
+
+    user = User.query.get_or_404(user_id)
+    return render_template('users/likes.html', user=user)
 
 ##############################################################################
 # Messages routes:
@@ -328,17 +338,22 @@ def homepage():
     else:
         return render_template('home-anon.html')
 
-@app.route('/users/add_like/<int:msg_id>', methods=["POST"])
+@app.route('/users/add_like/<int:msg_id>', methods=["POST", "DELETE"])
 def handle_like(msg_id):
     """Add or remove likes for messages"""
 
     if g.user:
-        user_id = g.user.id
+        user = g.user
         msg = Message.query.get(msg_id)
-        if user_id != msg.user_id:
-            like = Likes(user_id=user_id, message_id=msg_id)
-            db.session.add(like)
-            db.session.commit()
+        if user.id != msg.user_id:
+            if g.user.likes_message(msg):
+                like = Likes.query.filter_by(message_id=msg.id).first()
+                db.session.delete(like)
+                db.session.commit()
+            else:
+                like = Likes(user_id=user.id, message_id=msg_id)
+                db.session.add(like)
+                db.session.commit()
         else:
             flash('No liking your own posts', "danger")
         return redirect('/')
