@@ -57,7 +57,7 @@
                 btn 
                 btn-sm 
                 btn-primary"
-              > {% else %}
+              > {% elif not g.user.likes_message(msg) %}
               <button class="
                 btn 
                 btn-sm 
